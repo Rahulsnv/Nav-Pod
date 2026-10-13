@@ -22,6 +22,7 @@ import { WebView } from 'react-native-webview';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BleManager } from 'react-native-ble-plx';
 import * as Location from 'expo-location';
+import { useKeepAwake } from 'expo-keep-awake';
 import { encode } from 'base-64';
 
 const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
@@ -32,6 +33,9 @@ const STORAGE_KEY_FACE = "@navpod_face_mode";
 const USER_AGENT_HEADER = { 'User-Agent': 'NavPodCompanion/1.0' };
 
 export default function Page() {
+  // Prevent phone from sleeping while mounted on scooter or in apron/pocket
+  useKeepAwake();
+
   const systemScheme = useColorScheme();
   const [themeMode, setThemeMode] = useState(systemScheme || 'dark');
   const isDark = themeMode === 'dark';
@@ -88,7 +92,6 @@ export default function Page() {
   const activeRouteCoords = useRef([]);
   const intersectionsRef = useRef([]);
 
-  // Keep refs aligned with state to prevent stale closures
   useEffect(() => {
     destCoordsRef.current = destCoords;
   }, [destCoords]);
@@ -316,7 +319,7 @@ export default function Page() {
             lastPositionRef.current = loc.coords;
 
             if (currentNav === "NAVIGATING") {
-              // 1. Destination Arrival Check (25 meters)
+              // Scooter Arrival Check (25 meters)
               if (curDest) {
                 const endLatDist = (curDest.latitude - loc.coords.latitude) * 110540;
                 const endLonDist = (curDest.longitude - loc.coords.longitude) * 
@@ -327,7 +330,7 @@ export default function Page() {
                 }
               }
 
-              // 2. Off-Route Automatic Recalculation Check
+              // Off-Route Reroute Check (45-meter corridor)
               const coords = activeRouteCoords.current;
               if (coords.length > 0) {
                 let minDeviationMeters = Infinity;
@@ -464,7 +467,7 @@ export default function Page() {
           webViewRef.current.injectJavaScript(`if (window.setDestinationPin) { setDestinationPin(${lat}, ${lon}); } true;`);
         }
       } else {
-        Alert.alert("Location Not Found", "Try typing a nearby major landmark or city.");
+        Alert.alert("Location Not Found", "Try typing a nearby major landmark or street.");
       }
     } catch (e) {
       Alert.alert("Network Error", "Unable to reach search service.");
@@ -818,7 +821,7 @@ export default function Page() {
 
         function setUserLocation(lat, lon) {
           if (!userMarker) {
-            userMarker = L.circleMarker([lat, lon], { radius: 6, color: '#00B0FF', fillColor: '#00B0FF', fillOpacity: 1, weight: 2 }).addTo(map);
+            userMarker = L.circleMarker([lat, lon], { radius: 7, color: '#00E5FF', fillColor: '#00E5FF', fillOpacity: 1, weight: 3 }).addTo(map);
             map.setView([lat, lon], 15);
           } else {
             userMarker.setLatLng([lat, lon]);
@@ -827,7 +830,7 @@ export default function Page() {
 
         function setDestinationPin(lat, lon) {
           if (destMarker) map.removeLayer(destMarker);
-          destMarker = L.circleMarker([lat, lon], { radius: 7, color: '#FF1744', fillColor: '#FF1744', fillOpacity: 1, weight: 2 }).addTo(map);
+          destMarker = L.circleMarker([lat, lon], { radius: 8, color: '#FF1744', fillColor: '#FF1744', fillOpacity: 1, weight: 3 }).addTo(map);
           if (userMarker) {
             map.fitBounds(L.latLngBounds([userMarker.getLatLng(), [lat, lon]]), { padding: [40, 40] });
           } else {
@@ -838,7 +841,7 @@ export default function Page() {
         function drawRoute(coords, destLat, destLon) {
           if (routeLine) map.removeLayer(routeLine);
           setDestinationPin(destLat, destLon);
-          routeLine = L.polyline(coords, { color: '#00B0FF', weight: 4, opacity: 0.95, lineJoin: 'round' }).addTo(map);
+          routeLine = L.polyline(coords, { color: '#00E5FF', weight: 5, opacity: 0.95, lineJoin: 'round' }).addTo(map);
           map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
         }
 
@@ -917,7 +920,7 @@ export default function Page() {
           </View>
         </View>
 
-        {/* Live Metrics Row */}
+        {/* Scooter Live Telemetry Row */}
         <View style={[styles.metricsCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={styles.metricItem}>
             <Text style={[styles.metricLabel, { color: palette.label }]}>SPEED</Text>
@@ -927,7 +930,7 @@ export default function Page() {
           </View>
           <View style={[styles.verticalDivider, { backgroundColor: palette.border }]} />
           <View style={styles.metricItem}>
-            <Text style={[styles.metricLabel, { color: palette.label }]}>TIME</Text>
+            <Text style={[styles.metricLabel, { color: palette.label }]}>RIDE TIME</Text>
             <Text style={styles.metricValueLarge}>{formatDuration(rideSeconds)}</Text>
           </View>
           <View style={[styles.verticalDivider, { backgroundColor: palette.border }]} />
@@ -966,7 +969,7 @@ export default function Page() {
               value={searchQuery}
               onChangeText={setSearchQuery}
               onFocus={() => setShowRecents(true)}
-              placeholder="Where to?"
+              placeholder="Search destination..."
               placeholderTextColor={palette.textMuted}
               returnKeyType="search"
               onSubmitEditing={searchPlaceByName}
@@ -987,7 +990,7 @@ export default function Page() {
           {showRecents && recentLocations.length > 0 && (
             <View style={[styles.recentsDropdown, { backgroundColor: palette.recentsBg, borderColor: palette.border }]}>
               <View style={[styles.recentsHeader, { borderBottomColor: palette.border }]}>
-                <Text style={[styles.recentsTitle, { color: palette.label }]}>RECENT DESTINATIONS</Text>
+                <Text style={[styles.recentsTitle, { color: palette.label }]}>RECENT PLACES</Text>
                 <TouchableOpacity onPress={() => setShowRecents(false)}>
                   <Text style={styles.closeRecentsText}>HIDE</Text>
                 </TouchableOpacity>
@@ -1017,11 +1020,12 @@ export default function Page() {
 
         <View style={styles.spacer} />
 
-        {/* Action Button */}
+        {/* Glove-Friendly Large Action Button */}
         {navState === "NAVIGATING" ? (
           <TouchableOpacity 
             style={[styles.actionBtn, styles.stopBtn]} 
             onPress={() => stopNavigation(false)}
+            activeOpacity={0.8}
           >
             <Text style={styles.actionBtnText}>END TRIP</Text>
           </TouchableOpacity>
@@ -1029,6 +1033,7 @@ export default function Page() {
           <TouchableOpacity 
             style={[styles.actionBtn, styles.startBtn]} 
             onPress={startNavigation}
+            activeOpacity={0.8}
           >
             <Text style={styles.actionBtnText}>START NAVIGATION</Text>
           </TouchableOpacity>
@@ -1045,9 +1050,9 @@ export default function Page() {
             <View style={[styles.modalCard, { backgroundColor: palette.card, borderColor: palette.border }]}>
               <View style={[styles.modalHeader, { borderBottomColor: palette.border }]}>
                 <View>
-                  <Text style={[styles.modalTitle, { color: palette.textMain }]}>RIDE LOGS</Text>
+                  <Text style={[styles.modalTitle, { color: palette.textMain }]}>SCOOTER RIDE LOGS</Text>
                   <Text style={[styles.modalSubtitle, { color: palette.textMuted }]}>
-                    {savedTrips.length} {savedTrips.length === 1 ? 'trip' : 'trips'} recorded
+                    {savedTrips.length} {savedTrips.length === 1 ? 'trip' : 'trips'} saved
                   </Text>
                 </View>
                 <View style={styles.modalHeaderActions}>
@@ -1068,7 +1073,7 @@ export default function Page() {
               {savedTrips.length === 0 ? (
                 <View style={styles.emptyTripsContainer}>
                   <Text style={[styles.emptyTripsText, { color: palette.textMuted }]}>
-                    No saved trips yet. Completed rides will automatically appear here.
+                    No saved trips yet. Completed rides will log here automatically.
                   </Text>
                 </View>
               ) : (
@@ -1138,12 +1143,12 @@ export default function Page() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { flex: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  content: { flex: 1, paddingHorizontal: 18, paddingTop: 6, paddingBottom: 16 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   faceBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 14,
     borderWidth: 1,
     justifyContent: 'center',
@@ -1155,43 +1160,43 @@ const styles = StyleSheet.create({
     color: '#00E5FF',
     letterSpacing: 0.5,
   },
-  headerIconBtn: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 18, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  headerIconBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 18, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   headerIconText: { fontSize: 14 },
-  appTitle: { fontSize: 20, fontWeight: '900', letterSpacing: 2 },
+  appTitle: { fontSize: 21, fontWeight: '900', letterSpacing: 2 },
   statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
-  statusBadgeConnected: { borderColor: '#00B0FF44', backgroundColor: '#00B0FF15' },
+  statusBadgeConnected: { borderColor: '#00E5FF44', backgroundColor: '#00E5FF15' },
   statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#888', marginRight: 6 },
-  statusDotConnected: { backgroundColor: '#00B0FF' },
+  statusDotConnected: { backgroundColor: '#00E5FF' },
   statusText: { color: '#888', fontSize: 11, fontWeight: '700' },
-  statusTextConnected: { color: '#00B0FF' },
-  metricsCard: { flexDirection: 'row', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 8, borderWidth: 1, marginBottom: 16 },
+  statusTextConnected: { color: '#00E5FF' },
+  metricsCard: { flexDirection: 'row', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 6, borderWidth: 1, marginBottom: 14 },
   metricItem: { flex: 1, alignItems: 'center' },
   verticalDivider: { width: 1, height: '70%', alignSelf: 'center' },
   metricLabel: { fontSize: 8.5, fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 },
-  metricSpeedValue: { fontSize: 15, fontWeight: '800', color: '#00E5FF' },
+  metricSpeedValue: { fontSize: 16, fontWeight: '900', color: '#00E5FF' },
   metricValueLarge: { fontSize: 15, fontWeight: '800', color: '#F59E0B' },
   metricValue: { fontSize: 15, fontWeight: '700' },
   unit: { fontSize: 9.5, color: '#888', fontWeight: '500' },
-  mapContainer: { height: 220, borderRadius: 14, overflow: 'hidden', borderWidth: 1, marginBottom: 16 },
+  mapContainer: { height: 210, borderRadius: 14, overflow: 'hidden', borderWidth: 1, marginBottom: 14 },
   map: { flex: 1 },
   searchSection: { marginBottom: 10 },
-  searchBar: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, alignItems: 'center', paddingHorizontal: 16, height: 50 },
+  searchBar: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, alignItems: 'center', paddingHorizontal: 14, height: 50 },
   searchInput: { flex: 1, fontSize: 15 },
   searchAction: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
   searchActionText: { fontSize: 12, fontWeight: '800' },
   recentsDropdown: { borderRadius: 12, borderWidth: 1, marginTop: 8, padding: 10, maxHeight: 180 },
   recentsHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 6, borderBottomWidth: 1 },
   recentsTitle: { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  closeRecentsText: { fontSize: 10, color: '#00B0FF', fontWeight: '700' },
+  closeRecentsText: { fontSize: 10, color: '#00E5FF', fontWeight: '700' },
   recentItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1 },
   recentPin: { fontSize: 14, marginRight: 10 },
   recentText: { fontSize: 13, fontWeight: '500' },
   targetIndicator: { color: '#10B981', fontSize: 12, fontWeight: '600', marginTop: 8, marginLeft: 4 },
   spacer: { flex: 1 },
-  actionBtn: { height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  startBtn: { backgroundColor: '#00B0FF' },
+  actionBtn: { height: 56, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  startBtn: { backgroundColor: '#00E5FF' },
   stopBtn: { backgroundColor: '#EF4444' },
-  actionBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900', letterSpacing: 1 },
+  actionBtnText: { color: '#000000', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
   modalCard: { maxHeight: '75%', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 14, borderBottomWidth: 1 },
