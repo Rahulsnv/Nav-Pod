@@ -1,42 +1,65 @@
 {
   "expo": {
-    "name": "Nav Pod",
+    "name": "NAV POD",
     "slug": "nav-pod",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/icon.png",
-      "resizeMode": "contain",
       "backgroundColor": "#050505"
     },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.rahulm01.navpod",
+      "buildNumber": "1",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location",
+          "bluetooth-central"
+        ],
+        "NSLocationWhenInUseUsageDescription": "NAV POD uses your location for scooter route navigation.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "NAV POD requires continuous location access to keep updating your handlebar display even when the screen is locked.",
+        "NSBluetoothAlwaysUsageDescription": "NAV POD requires Bluetooth to communicate turn instructions to your ESP32 handlebar display."
+      }
+    },
     "android": {
-      "package": "com.anonymous.navpod",
-      "versionCode": 14,
+      "package": "com.rahulm01.navpod",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050505"
       },
       "permissions": [
-        "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
         "BLUETOOTH_SCAN",
         "BLUETOOTH_CONNECT",
-        "android.permission.BLUETOOTH",
-        "android.permission.BLUETOOTH_ADMIN",
-        "android.permission.BLUETOOTH_CONNECT"
+        "POST_NOTIFICATIONS"
       ]
     },
     "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow NAV POD to access location continuously for live route updates.",
+          "locationAlwaysPermission": "Allow NAV POD to update your handlebar display even when the screen is locked.",
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
       [
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": true,
           "modes": [
-            "peripheral",
             "central"
-          ]
+          ],
+          "bluetoothAlwaysPermission": "Allow NAV POD to connect to your ESP32 handlebar display."
         }
       ]
     ],
@@ -44,6 +67,7 @@
       "eas": {
         "projectId": "befa8ca8-11d7-4c36-90a4-32a865526a47"
       }
-    }
+    },
+    "owner": "rahulm01"
   }
 }
